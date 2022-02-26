@@ -6,13 +6,14 @@ const sinon = require('sinon');
 const fs = require('fs');
 const fse = require('fs-extra');
 const path = require('path');
+const crypto = require('crypto');
 const chai = require('chai');
-const proxyquire = require('proxyquire');
 const normalizeFiles = require('../../../../../../../lib/plugins/aws/lib/normalize-files');
 const AwsProvider = require('../../../../../../../lib/plugins/aws/provider');
 const AwsDeploy = require('../../../../../../../lib/plugins/aws/deploy/index');
 const Serverless = require('../../../../../../../lib/serverless');
 const { getTmpDirPath, createTmpDir } = require('../../../../../../utils/fs');
+const runServerless = require('../../../../../../utils/run-serverless');
 
 chai.use(require('chai-as-promised'));
 chai.use(require('sinon-chai'));
@@ -44,23 +45,19 @@ describe('uploadArtifacts', () => {
       foo: 'bar',
     };
     awsDeploy.serverless.cli = new serverless.classes.CLI();
+
     cryptoStub = {
-      createHash() {
-        return this;
-      },
       update() {
         return this;
       },
       digest: sinon.stub(),
     };
-    const uploadArtifacts = proxyquire(
-      '../../../../../../../lib/plugins/aws/deploy/lib/upload-artifacts.js',
-      {
-        crypto: cryptoStub,
-      }
-    );
-    Object.assign(awsDeploy, uploadArtifacts);
+    sinon.stub(crypto, 'createHash').callsFake(() => {
+      return cryptoStub;
+    });
   });
+
+  afterEach(() => sinon.restore());
 
   describe('#uploadCloudFormationFile()', () => {
     let normalizeCloudFormationTemplateStub;
@@ -79,7 +76,7 @@ describe('uploadArtifacts', () => {
     });
 
     it('should upload the CloudFormation file to the S3 bucket', () => {
-      cryptoStub.createHash().update().digest.onCall(0).returns('local-hash-cf-template');
+      crypto.createHash().update().digest.onCall(0).returns('local-hash-cf-template');
 
       return awsDeploy.uploadCloudFormationFile().then(() => {
         expect(normalizeCloudFormationTemplateStub).to.have.been.calledOnce;
@@ -98,7 +95,7 @@ describe('uploadArtifacts', () => {
     });
 
     it('should upload the CloudFormation file to a bucket with SSE bucket policy', () => {
-      cryptoStub.createHash().update().digest.onCall(0).returns('local-hash-cf-template');
+      crypto.createHash().update().digest.onCall(0).returns('local-hash-cf-template');
       awsDeploy.serverless.service.provider.deploymentBucketObject = {
         serverSideEncryption: 'AES256',
       };
@@ -140,29 +137,34 @@ describe('uploadArtifacts', () => {
     });
 
     it('should upload the .zip file to the S3 bucket', () => {
-      cryptoStub.createHash().update().digest.onCall(0).returns('local-hash-zip-file');
+      crypto.createHash().update().digest.onCall(0).returns('local-hash-zip-file');
 
       const tmpDirPath = getTmpDirPath();
       const artifactFilePath = path.join(tmpDirPath, 'artifact.zip');
       serverless.utils.writeFileSync(artifactFilePath, 'artifact.zip file content');
 
-      return awsDeploy.uploadZipFile(artifactFilePath).then(() => {
-        expect(uploadStub).to.have.been.calledOnce;
-        expect(uploadStub).to.have.been.calledWithExactly('S3', 'upload', {
-          Bucket: awsDeploy.bucketName,
-          Key: `${awsDeploy.serverless.service.package.artifactDirectoryName}/artifact.zip`,
-          Body: sinon.match.object.and(sinon.match.has('path', artifactFilePath)),
-          ContentType: 'application/zip',
-          Metadata: {
-            filesha256: 'local-hash-zip-file',
-          },
+      return awsDeploy
+        .uploadZipFile({
+          filename: artifactFilePath,
+          s3KeyDirname: awsDeploy.serverless.service.package.artifactDirectoryName,
+        })
+        .then(() => {
+          expect(uploadStub).to.have.been.calledOnce;
+          expect(uploadStub).to.have.been.calledWithExactly('S3', 'upload', {
+            Bucket: awsDeploy.bucketName,
+            Key: `${awsDeploy.serverless.service.package.artifactDirectoryName}/artifact.zip`,
+            Body: sinon.match.object.and(sinon.match.has('path', artifactFilePath)),
+            ContentType: 'application/zip',
+            Metadata: {
+              filesha256: 'local-hash-zip-file',
+            },
+          });
+          expect(readFileSyncStub).to.have.been.calledWithExactly(artifactFilePath);
         });
-        expect(readFileSyncStub).to.have.been.calledWithExactly(artifactFilePath);
-      });
     });
 
     it('should upload the .zip file to a bucket with SSE bucket policy', () => {
-      cryptoStub.createHash().update().digest.onCall(0).returns('local-hash-zip-file');
+      crypto.createHash().update().digest.onCall(0).returns('local-hash-zip-file');
 
       const tmpDirPath = getTmpDirPath();
       const artifactFilePath = path.join(tmpDirPath, 'artifact.zip');
@@ -171,21 +173,26 @@ describe('uploadArtifacts', () => {
         serverSideEncryption: 'AES256',
       };
 
-      return awsDeploy.uploadZipFile(artifactFilePath).then(() => {
-        expect(uploadStub).to.have.been.calledOnce;
-        expect(readFileSyncStub).to.have.been.calledOnce;
-        expect(uploadStub).to.have.been.calledWithExactly('S3', 'upload', {
-          Bucket: awsDeploy.bucketName,
-          Key: `${awsDeploy.serverless.service.package.artifactDirectoryName}/artifact.zip`,
-          Body: sinon.match.object.and(sinon.match.has('path', artifactFilePath)),
-          ContentType: 'application/zip',
-          ServerSideEncryption: 'AES256',
-          Metadata: {
-            filesha256: 'local-hash-zip-file',
-          },
+      return awsDeploy
+        .uploadZipFile({
+          filename: artifactFilePath,
+          s3KeyDirname: awsDeploy.serverless.service.package.artifactDirectoryName,
+        })
+        .then(() => {
+          expect(uploadStub).to.have.been.calledOnce;
+          expect(readFileSyncStub).to.have.been.calledOnce;
+          expect(uploadStub).to.have.been.calledWithExactly('S3', 'upload', {
+            Bucket: awsDeploy.bucketName,
+            Key: `${awsDeploy.serverless.service.package.artifactDirectoryName}/artifact.zip`,
+            Body: sinon.match.object.and(sinon.match.has('path', artifactFilePath)),
+            ContentType: 'application/zip',
+            ServerSideEncryption: 'AES256',
+            Metadata: {
+              filesha256: 'local-hash-zip-file',
+            },
+          });
+          expect(readFileSyncStub).to.have.been.calledWithExactly(artifactFilePath);
         });
-        expect(readFileSyncStub).to.have.been.calledWithExactly(artifactFilePath);
-      });
     });
   });
 
@@ -209,7 +216,7 @@ describe('uploadArtifacts', () => {
       return awsDeploy.uploadFunctionsAndLayers().then(() => {
         expect(uploadZipFileStub.calledOnce).to.be.equal(true);
         const expectedPath = path.join('foo', '.serverless', 'new-service.zip');
-        expect(uploadZipFileStub.args[0][0]).to.be.equal(expectedPath);
+        expect(uploadZipFileStub.args[0][0].filename).to.be.equal(expectedPath);
       });
     });
 
@@ -229,7 +236,7 @@ describe('uploadArtifacts', () => {
 
       return awsDeploy.uploadFunctionsAndLayers().then(() => {
         expect(uploadZipFileStub.calledOnce).to.be.equal(true);
-        expect(uploadZipFileStub.args[0][0]).to.be.equal('artifact.zip');
+        expect(uploadZipFileStub.args[0][0].filename).to.be.equal('artifact.zip');
       });
     });
 
@@ -250,10 +257,10 @@ describe('uploadArtifacts', () => {
 
       return awsDeploy.uploadFunctionsAndLayers().then(() => {
         expect(uploadZipFileStub.calledTwice).to.be.equal(true);
-        expect(uploadZipFileStub.args[0][0]).to.be.equal(
+        expect(uploadZipFileStub.args[0][0].filename).to.be.equal(
           awsDeploy.serverless.service.functions.first.package.artifact
         );
-        expect(uploadZipFileStub.args[1][0]).to.be.equal(
+        expect(uploadZipFileStub.args[1][0].filename).to.be.equal(
           awsDeploy.serverless.service.functions.second.package.artifact
         );
       });
@@ -276,10 +283,10 @@ describe('uploadArtifacts', () => {
 
       return awsDeploy.uploadFunctionsAndLayers().then(() => {
         expect(uploadZipFileStub.calledTwice).to.be.equal(true);
-        expect(uploadZipFileStub.args[0][0]).to.be.equal(
+        expect(uploadZipFileStub.args[0][0].filename).to.be.equal(
           awsDeploy.serverless.service.functions.first.package.artifact
         );
-        expect(uploadZipFileStub.args[1][0]).to.be.equal(
+        expect(uploadZipFileStub.args[1][0].filename).to.be.equal(
           awsDeploy.serverless.service.package.artifact
         );
       });
@@ -317,7 +324,7 @@ describe('uploadArtifacts', () => {
     it('should upload the custom resources .zip file to the S3 bucket', () => {
       fse.ensureFileSync(customResourcesFilePath);
 
-      cryptoStub.createHash().update().digest.onCall(0).returns('local-hash-zip-file');
+      crypto.createHash().update().digest.onCall(0).returns('local-hash-zip-file');
 
       return expect(awsDeploy.uploadCustomResources()).to.eventually.be.fulfilled.then(() => {
         expect(uploadStub).to.have.been.calledOnce;
@@ -332,5 +339,63 @@ describe('uploadArtifacts', () => {
         });
       });
     });
+  });
+});
+
+describe('test/unit/lib/plugins/aws/deploy/lib/upload-artifacts.test.js', () => {
+  it('should upload state file', async () => {
+    const uploadStub = sinon.stub().resolves({});
+    const { awsNaming } = await runServerless({
+      fixture: 'function',
+      command: 'deploy',
+      lastLifecycleHookName: 'aws:deploy:deploy:uploadArtifacts',
+      awsRequestStubMap: {
+        CloudFormation: {
+          describeStacks: {},
+          describeStackResource: {
+            StackResourceDetail: { PhysicalResourceId: 'deployment-bucket' },
+          },
+        },
+        Lambda: {
+          getFunction: {
+            Configuration: {
+              LastModified: '2020-05-20T15:34:16.494+0000',
+            },
+          },
+        },
+        S3: {
+          headObject: {
+            Metadata: { filesha256: 'RRYyTm4Ri8mocpvx44pvas4JKLYtdJS3Z8MOlrZrDXA=' },
+          },
+          listObjectsV2: {
+            Contents: [
+              {
+                Key: 'serverless/test-package-artifact/dev/1589988704359-2020-05-20T15:31:44.359Z/artifact.zip',
+                LastModified: new Date(),
+                ETag: '"5102a4cf710cae6497dba9e61b85d0a4"',
+                Size: 356,
+                StorageClass: 'STANDARD',
+              },
+            ],
+          },
+          headBucket: {},
+          upload: uploadStub,
+        },
+        STS: {
+          getCallerIdentity: {
+            ResponseMetadata: { RequestId: 'ffffffff-ffff-ffff-ffff-ffffffffffff' },
+            UserId: 'XXXXXXXXXXXXXXXXXXXXX',
+            Account: '999999999999',
+            Arn: 'arn:aws:iam::999999999999:user/test',
+          },
+        },
+      },
+    });
+
+    const [statePayload] = uploadStub.args.find(([params]) =>
+      params.Key.endsWith(awsNaming.getServiceStateFileName())
+    );
+    expect(statePayload.Body.includes('"service":')).to.be.true;
+    expect(statePayload.ContentType).to.equal('application/json');
   });
 });

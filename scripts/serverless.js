@@ -10,7 +10,7 @@ require('graceful-fs').gracefulify(require('fs'));
 
 // Setup log writing
 require('@serverless/utils/log-reporters/node');
-const { log, progress } = require('@serverless/utils/log');
+const { log, progress, isInteractive: isInteractiveTerminal } = require('@serverless/utils/log');
 
 const handleError = require('../lib/cli/handle-error');
 const {
@@ -152,6 +152,7 @@ processSpanPromise = (async () => {
     const isPropertyResolved = require('../lib/configuration/variables/is-property-resolved');
     const eventuallyReportVariableResolutionErrors = require('../lib/configuration/variables/eventually-report-resolution-errors');
     const filterSupportedOptions = require('../lib/cli/filter-supported-options');
+    const isDashboardEnabled = require('../lib/configuration/is-dashboard-enabled');
 
     let configurationPath = null;
     let providerName;
@@ -362,22 +363,56 @@ processSpanPromise = (async () => {
           }
 
           // Load eventual environment variables from .env files
-          await require('../lib/cli/conditionally-load-dotenv')(options, configuration);
-
-          if (envVarNamesNeededForDotenvResolution) {
-            for (const envVarName of envVarNamesNeededForDotenvResolution) {
-              if (process.env[envVarName]) {
-                throw new ServerlessError(
-                  'Cannot reliably resolve "env" variables due to resolution conflict.\n' +
-                    `Environment variable "${envVarName}" which influences resolution of ` +
-                    '".env" file were found to be defined in resolved ".env" file.' +
-                    'DOTENV_ENV_VAR_RESOLUTION_CONFLICT'
-                );
+          if (await require('../lib/cli/conditionally-load-dotenv')(options, configuration)) {
+            if (envVarNamesNeededForDotenvResolution) {
+              for (const envVarName of envVarNamesNeededForDotenvResolution) {
+                if (process.env[envVarName]) {
+                  throw new ServerlessError(
+                    'Cannot reliably resolve "env" variables due to resolution conflict.\n' +
+                      `Environment variable "${envVarName}" which influences resolution of ` +
+                      '".env" file were found to be defined in resolved ".env" file.' +
+                      'DOTENV_ENV_VAR_RESOLUTION_CONFLICT'
+                  );
+                }
+              }
+            }
+            if (!isPropertyResolved(variablesMeta, 'provider\0name')) {
+              await resolveVariables(resolverConfiguration);
+              if (
+                eventuallyReportVariableResolutionErrors(
+                  configurationPath,
+                  configuration,
+                  variablesMeta
+                )
+              ) {
+                variablesMeta = null;
+                return;
               }
             }
           }
 
           if (!variablesMeta.size) return; // No properties configured with variables
+
+          if (!providerName) {
+            if (!ensureResolvedProperty('provider\0name')) return;
+            providerName = resolveProviderName(configuration);
+            if (providerName == null) {
+              variablesMeta = null;
+              return;
+            }
+            if (!commandSchema && providerName === 'aws') {
+              resolveInput.clear();
+              ({ command, commands, options, isHelpRequest, commandSchema } = resolveInput(
+                require('../lib/cli/commands-schema/aws-service')
+              ));
+              if (commandSchema) {
+                resolverConfiguration.options = filterSupportedOptions(options, {
+                  commandSchema,
+                  providerName,
+                });
+              }
+            }
+          }
 
           if (isHelpRequest || commands[0] === 'plugin') {
             // We do not need full config resolved, we just need to know what
@@ -400,38 +435,6 @@ processSpanPromise = (async () => {
             return;
           }
 
-          if (!providerName) {
-            if (!ensureResolvedProperty('provider\0name')) return;
-            providerName = resolveProviderName(configuration);
-            if (providerName == null) {
-              variablesMeta = null;
-              return;
-            }
-            if (!commandSchema && providerName === 'aws') {
-              resolveInput.clear();
-              ({ command, commands, options, isHelpRequest, commandSchema } = resolveInput(
-                require('../lib/cli/commands-schema/aws-service')
-              ));
-              if (commandSchema) {
-                resolverConfiguration.options = filterSupportedOptions(options, {
-                  commandSchema,
-                  providerName,
-                });
-                await resolveVariables(resolverConfiguration);
-                if (
-                  eventuallyReportVariableResolutionErrors(
-                    configurationPath,
-                    configuration,
-                    variablesMeta
-                  )
-                ) {
-                  variablesMeta = null;
-                  return;
-                }
-              }
-            }
-          }
-
           if (!variablesMeta.size) return; // All properties successuflly resolved
 
           if (!ensureResolvedProperty('plugins')) return;
@@ -441,7 +444,7 @@ processSpanPromise = (async () => {
           if (!ensureResolvedProperty('app')) return;
           if (!ensureResolvedProperty('org')) return;
           if (!ensureResolvedProperty('service')) return;
-          if (configuration.org) {
+          if (isDashboardEnabled({ configuration, options })) {
             // Dashboard requires AWS region to be resolved upfront
             ensureResolvedProperty('provider\0region');
           }
@@ -479,7 +482,7 @@ processSpanPromise = (async () => {
     if (!isHelpRequest && (isInteractiveSetup || isStandaloneCommand)) {
       if (configuration) require('../lib/cli/ensure-supported-command')(configuration);
       if (isInteractiveSetup) {
-        if (!process.stdin.isTTY && !process.env.SLS_INTERACTIVE_SETUP_ENABLE) {
+        if (!isInteractiveTerminal) {
           throw new ServerlessError(
             'Attempted to run an interactive setup in non TTY environment.\n' +
               "If that's intended, run with the SLS_INTERACTIVE_SETUP_ENABLE=1 environment variable",
@@ -563,8 +566,49 @@ processSpanPromise = (async () => {
         if (isHelpRequest) return;
         if (!_.get(variablesMeta, 'size')) return;
 
-        // Resolve remaininig service configuration variables
+        if (commandSchema) {
+          resolverConfiguration.options = filterSupportedOptions(options, {
+            commandSchema,
+            providerName,
+          });
+        }
+        resolverConfiguration.fulfilledSources.add('opt');
+
+        // Register serverless instance specific variable sources
+        resolverConfiguration.sources.sls =
+          require('../lib/configuration/variables/sources/instance-dependent/get-sls')(serverless);
+        resolverConfiguration.fulfilledSources.add('sls');
+
+        resolverConfiguration.sources.param =
+          serverless.pluginManager.dashboardPlugin.configurationVariablesSources.param;
+        resolverConfiguration.fulfilledSources.add('param');
+
+        // Register dashboard specific variable source resolvers
+        if (isDashboardEnabled({ configuration, options })) {
+          for (const [sourceName, sourceConfig] of Object.entries(
+            serverless.pluginManager.dashboardPlugin.configurationVariablesSources
+          )) {
+            if (sourceName === 'param') continue;
+            resolverConfiguration.sources[sourceName] = sourceConfig;
+            resolverConfiguration.fulfilledSources.add(sourceName);
+          }
+        }
+
+        // Register AWS provider specific variable sources
         if (providerName === 'aws') {
+          // Pre-resolve to eventually pick not yet resolved AWS auth related properties
+          await resolveVariables(resolverConfiguration);
+          if (!variablesMeta.size) return;
+          if (
+            eventuallyReportVariableResolutionErrors(
+              configurationPath,
+              configuration,
+              variablesMeta
+            )
+          ) {
+            return;
+          }
+
           // Ensure properties which are crucial to some variable source resolvers
           // are actually resolved.
           if (
@@ -575,21 +619,6 @@ processSpanPromise = (async () => {
           ) {
             return;
           }
-        }
-        if (commandSchema) {
-          resolverConfiguration.options = filterSupportedOptions(options, {
-            commandSchema,
-            providerName,
-          });
-        }
-        resolverConfiguration.fulfilledSources.add('opt');
-
-        // Register serverless instance and AWS provider specific variable sources
-        resolverConfiguration.sources.sls =
-          require('../lib/configuration/variables/sources/instance-dependent/get-sls')(serverless);
-        resolverConfiguration.fulfilledSources.add('sls');
-
-        if (providerName === 'aws') {
           Object.assign(resolverConfiguration.sources, {
             cf: require('../lib/configuration/variables/sources/instance-dependent/get-cf')(
               serverless
@@ -604,23 +633,7 @@ processSpanPromise = (async () => {
               serverless
             ),
           });
-          resolverConfiguration.fulfilledSources.add('cf').add('s3').add('ssm');
-        }
-
-        // Register dashboard specific variable source resolvers
-        if (serverless.pluginManager.dashboardPlugin) {
-          if (configuration.org) {
-            for (const [sourceName, sourceConfig] of Object.entries(
-              serverless.pluginManager.dashboardPlugin.configurationVariablesSources
-            )) {
-              resolverConfiguration.sources[sourceName] = sourceConfig;
-              resolverConfiguration.fulfilledSources.add(sourceName);
-            }
-          } else {
-            resolverConfiguration.sources.param =
-              serverless.pluginManager.dashboardPlugin.configurationVariablesSources.param;
-            resolverConfiguration.fulfilledSources.add('param');
-          }
+          resolverConfiguration.fulfilledSources.add('cf').add('s3').add('ssm').add('aws');
         }
 
         // Register variable source resolvers provided by external plugins
@@ -682,9 +695,7 @@ processSpanPromise = (async () => {
       }
     } catch (error) {
       // If Dashboard Plugin, capture error
-      const dashboardPlugin =
-        serverless.pluginManager.dashboardPlugin ||
-        serverless.pluginManager.plugins.find((p) => p.enterprise);
+      const dashboardPlugin = serverless.pluginManager.dashboardPlugin;
       const dashboardErrorHandler = _.get(dashboardPlugin, 'enterprise.errorHandler');
       if (!dashboardErrorHandler) throw error;
       try {

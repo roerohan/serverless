@@ -2,6 +2,78 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.4.0](https://github.com/serverless/serverless/compare/v3.3.0...v3.4.0) (2022-02-25)
+
+### Features
+
+- **AWS Lambda:** Add support for `dotnet6` runtime ([#10757](https://github.com/serverless/serverless/issues/10757)) ([818dda2](https://github.com/serverless/serverless/commit/818dda21a9b97fbc911d9885d71b8b708b7b1ecf)) ([Martin Costello](https://github.com/martincostello))
+- **Console:** Initial (experimental) support ([#10752](https://github.com/serverless/serverless/issues/10752)) ([bdaf21e](https://github.com/serverless/serverless/commit/bdaf21e1a1e839b7f2a2575cfeba741305080a92)) ([Mariusz Nowak](https://github.com/medikoo))
+
+### Bug Fixes
+
+- **AWS API Gateway:** Properly apply `description` to REST API ([#10746](https://github.com/serverless/serverless/issues/10746)) ([451def9](https://github.com/serverless/serverless/commit/451def93ae1997df6dde10439bd931d73e926708)) ([ALOHACREPES345](https://github.com/ALOHACREPES345))
+
+### Maintenance Improvements
+
+- **AWS Deploy:** Generalize `uploadZipFile` logic ([#10752](https://github.com/serverless/serverless/issues/10752)) ([26bc112](https://github.com/serverless/serverless/commit/26bc112f1f5f34512b9255315b2fab3274d32f74)) ([Mariusz Nowak](https://github.com/medikoo))
+- **AWS Deploy:** Improve progress logs for rollback ([#10752](https://github.com/serverless/serverless/issues/10752)) ([24c45a0](https://github.com/serverless/serverless/commit/24c45a08462741bde5e450d9cf6601b7d60ff49c)) ([Mariusz Nowak](https://github.com/medikoo))
+- **AWS Deploy:** Refactor `extendedValidate` to async ([#10752](https://github.com/serverless/serverless/issues/10752)) ([e1d2b82](https://github.com/serverless/serverless/commit/e1d2b8251ac7e06ca01fc3bb3505531cee459bce)) ([Mariusz Nowak](https://github.com/medikoo))
+- **AWS Deploy:** Store resolved state on internal class ([#10752](https://github.com/serverless/serverless/issues/10752)) ([1c00eb2](https://github.com/serverless/serverless/commit/1c00eb29fe55bccd0fe2ca62fe2c99f93bc4b6db)) ([Mariusz Nowak](https://github.com/medikoo))
+- **AWS Deploy:** Upload state file to deployment bucket ([#10752](https://github.com/serverless/serverless/issues/10752)) ([5525a3e](rverless/serverless/commit/5525a3e6f54209e80db98cb32baadd62aac16da9)) ([Mariusz Nowak](https://github.com/medikoo))
+- Expose `isDashboardEnabled` resolver ([#10752](https://github.com/serverless/serverless/issues/10752)) ([ba34c57](https://github.com/serverless/serverless/commit/ba34c573f4d471bd724fe1a8e77c62e10d7c29c3)) ([Mariusz Nowak](https://github.com/medikoo))
+- Generalize S3 upload dirname handling ([#10752](https://github.com/serverless/serverless/issues/10752)) ([9223b79](https://github.com/serverless/serverless/commit/9223b793161d3cb8e6075abb1254f1d707adb8ee)) ([Mariusz Nowak](https://github.com/medikoo))
+- Introduce hooks tracking debug logs ([#10752](https://github.com/serverless/serverless/issues/10752)) ([efe1139](https://github.com/serverless/serverless/commit/efe11396be5c9f34a92b60b5c4217201e2f55a54)) ([Mariusz Nowak](https://github.com/medikoo))
+- Mark `saveServiceState` internal function as async ([#10752](https://github.com/serverless/serverless/issues/10752)) ([4f895a2](https://github.com/serverless/serverless/commit/4f895a2e36f56eb65161af706c0c6f4f2d9a4655)) ([Mariusz Nowak](https://github.com/medikoo))
+
+## [3.3.0](https://github.com/serverless/serverless/compare/v3.2.1...v3.3.0) (2022-02-18)
+
+### Features
+
+- **Variables:** Support for `--param` CLI options ([#10713](https://github.com/serverless/serverless/pull/10713)) ([964b883](https://github.com/serverless/serverless/commit/964b8834554e4607fa68f4460cab995af1352746)) ([Piotr Grzesik](https://github.com/pgrzesik))
+
+### Bug Fixes
+
+- **AWS Local Invocation:** Improve `ruby` context ([#10705](https://github.com/serverless/serverless/issues/10705)) ([ce5bf0b](https://github.com/serverless/serverless/commit/ce5bf0b40f64c087fa5ec114d0d28750b4813aaa)) ([Shalvah](https://github.com/shalvah))
+
+### Maintenance Improvements
+
+- **CLI:** Remove obsolete `v` postfix when listing global version ([#10708](https://github.com/serverless/serverless/pull/10708)) ([5013af0](https://github.com/serverless/serverless/commit/5013af01476fb3d13f31775ff4171bc98a35d39d)) ([Mariusz Nowak](https://github.com/medikoo))
+
+### [3.2.1](https://github.com/serverless/serverless/compare/v3.2.0...v3.2.1) (2022-02-14)
+
+### Bug Fixes
+
+- **CLI:** Ensure to pass through `serverless-tencent` exit code ([#10698](https://github.com/serverless/serverless/pull/10698)) ([4d091b4](https://github.com/serverless/serverless/commit/4d091b42cbcfadf8f8922aba9e46f756ebfe3e88)) ([Mariusz Nowak](https://github.com/medikoo))
+- **Config Schema:** Safe generation of standalone AJV validator ([#10680](https://github.com/serverless/serverless/pull/10680)) ([6093ee4](https://github.com/serverless/serverless/commit/6093ee480aceba35d7eb74d7a0ea3c378a596e63)) ([Piotr Grzesik](https://github.com/pgrzesik))
+- **Standalone:** Fix upgrade when temp dir is on other device ([#10684](https://github.com/serverless/serverless/pull/10684)) ([1b8d463](https://github.com/serverless/serverless/commit/1b8d463a08fb48cca0236874dd1cf68e477ba93d)) ([Mariusz Nowak](https://github.com/medikoo))
+
+### Maintenance Improvements
+
+- Upgrade to `@serverless/test` in `v10` ([4201b30](https://github.com/serverless/serverless/commit/4201b304a2b6582e5755944b1c4a0ff89ad2bcc1))
+
+## [3.2.0](https://github.com/serverless/serverless/compare/v3.1.1...v3.2.0) (2022-02-10)
+
+### Features
+
+- **Plugins:** Support ESM format for plugins ([#10657](https://github.com/serverless/serverless/issues/10657)) ([ec3271f](https://github.com/serverless/serverless/commit/ec3271f3e8b7e055ad26eec89dfccfd3ca59fd0e)) ([frozenbonito](https://github.com/frozenbonito))
+
+### Bug Fixes
+
+- **AWS Deploy:** Add descriptive error if S3 bucket cant be cleaned ([#10668](https://github.com/serverless/serverless/pull/10668)) ([d4ee656](https://github.com/serverless/serverless/commit/d4ee656de1fd4cb6b2803cb531725a016cc7e428)) ([Piotr Grzesik](https://github.com/pgrzesik))
+- **Config Schema:** Recognize `provider.websocketsDescription` ([#10663](https://github.com/serverless/serverless/issues/10663)) ([9778751](https://github.com/serverless/serverless/commit/977875144798d4c1e2e37ecccc7bbab286f4684d)) ([Jérémy Benoist](https://github.com/j0k3r))
+- **Variables:** Improve resolution of AWS auth related properties ([#10652](https://github.com/serverless/serverless/pull/10652)) ([e66c865](https://github.com/serverless/serverless/commit/e66c865a26c237273473429eb595295c2d7992af)) ([Mariusz Nowak](https://github.com/medikoo))
+- Improve detection of `tty` ([#10662](https://github.com/serverless/serverless/pull/10662)) ([0c810bf](https://github.com/serverless/serverless/commit/0c810bf96a9f1000d9dead9459e0db652819ea02)) ([Piotr Grzesik](https://github.com/pgrzesik))
+- Improve validation of min supported Node version ([#10655](https://github.com/serverless/serverless/pull/10655)) ([bf084f3](https://github.com/serverless/serverless/commit/bf084f3edd0891bb4947c9727c8d85684c3a423d)) ([Piotr Grzesik](https://github.com/pgrzesik))
+
+### Maintenance Improvements
+
+- **CLI:** Conditionally apply post dotenv resolution logic ([#10652](https://github.com/serverless/serverless/pull/10652)) ([30465cc](https://github.com/serverless/serverless/commit/30465ccb0bfd1b56b89833208b3d96dba2ae8119)) ([Mariusz Nowak](https://github.com/medikoo))
+- **Variables:**
+  - Ensure to mark `aws` as fulfilled source ([#10652](https://github.com/serverless/serverless/pull/10652)) ([a4c9392](https://github.com/serverless/serverless/commit/a4c93920830051ee67bebd0be815f8aa4c2ba234)) ([Mariusz Nowak](https://github.com/medikoo))
+  - Optimize `provider.name` resolution handling ([#10652](https://github.com/serverless/serverless/pull/10652)) ([6e1f5ed](https://github.com/serverless/serverless/commit/6e1f5ed3f8fb76c5583b0f6f6bea086bf24ff6b4)) ([Mariusz Nowak](https://github.com/medikoo))
+- Use templates from `examples` in `create` command ([#10576](https://github.com/serverless/serverless/pull/10576)) ([76a60ae](https://github.com/serverless/serverless/commit/76a60ae2b769c73657770392806eb59cfbb4d186)) ([Piotr Grzesik](https://github.com/pgrzesik))
+- Change all occurences of succesful to successful ([#10639](https://github.com/serverless/serverless/issues/10639)) ([77f8e56](https://github.com/serverless/serverless/commit/77f8e56a6958824a727f8420c3ed1b06448b72f9)) ([Rohan Mukherjee](https://github.com/roerohan))
+
 ## [3.1.1](https://github.com/serverless/serverless/compare/v3.1.0...v3.1.1) (2022-02-02)
 
 ### Bug Fixes
@@ -93,7 +165,7 @@ Read the [**complete v3 Upgrade Guide**](https://www.serverless.com/framework/do
 - Duplicate plugin definition in configuration will now result in an error instead of a warning.
 - Using `--aws-s3-accelerate` flag will result in an error instead of deprecation when custom S3 bucket is used.
 - Removed support for `provider.disableDefaultOutputExportNames`
-- Node.js versions lower than 12 is no longer supported
+- Node.js versions lower than v12.13.0 (LTS) is no longer supported
 - Lifecycle events marked as deprecated (in context of v1) are no longer evaluated
 
 ### Features
